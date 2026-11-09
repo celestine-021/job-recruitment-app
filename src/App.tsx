@@ -529,9 +529,9 @@ function HiringFunnelChart({ applications }: { applications: Application[] }) {
     return !Number.isNaN(appliedAt.getTime()) && getMonthKey(appliedAt) === currentMonthKey;
   });
   const segments = [
-    { label: "In review", color: "#8da487", count: currentMonthApplications.filter((application) => application.status === "In review").length },
-    { label: "Shortlisted", color: "#526d55", count: currentMonthApplications.filter((application) => application.status === "Shortlisted").length },
-    { label: "Next steps", color: "#d9b685", count: currentMonthApplications.filter((application) => application.status !== "In review" && application.status !== "Shortlisted").length },
+    { label: "In review", color: "#f3ad78", count: currentMonthApplications.filter((application) => application.status === "In review").length },
+    { label: "Shortlisted", color: "#e87524", count: currentMonthApplications.filter((application) => application.status === "Shortlisted").length },
+    { label: "Next steps", color: "#f4ca9f", count: currentMonthApplications.filter((application) => application.status !== "In review" && application.status !== "Shortlisted").length },
   ];
   const total = currentMonthApplications.length;
   const circumference = 2 * Math.PI * 44;
