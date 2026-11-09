@@ -435,6 +435,99 @@ function ProfilePage({ profile, onEdit, applications, saved }: { profile: Profil
   );
 }
 
+function getMonthKey(date: Date) {
+  return `${date.getFullYear()}-${date.getMonth()}`;
+}
+
+function ApplicationTrendChart({ applications }: { applications: Application[] }) {
+  const months = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date();
+    date.setDate(1);
+    date.setMonth(date.getMonth() - (5 - index));
+    const key = getMonthKey(date);
+    return {
+      key,
+      label: date.toLocaleDateString(undefined, { month: "short" }),
+      count: applications.filter((application) => {
+        const appliedAt = new Date(application.date);
+        return !Number.isNaN(appliedAt.getTime()) && getMonthKey(appliedAt) === key;
+      }).length,
+    };
+  });
+  const maxCount = Math.max(...months.map((month) => month.count));
+  const chartMax = Math.max(3, Math.ceil(maxCount / 3) * 3);
+  const plot = { top: 17, bottom: 155, left: 37, right: 577 };
+  const chartHeight = plot.bottom - plot.top;
+  const slotWidth = (plot.right - plot.left) / months.length;
+  const barWidth = 34;
+  const description = months.map((month) => `${month.label}: ${month.count} applications`).join(", ");
+
+  return (
+    <div className="trend-chart">
+      <div className="chart-summary"><strong>{months[months.length - 1].count}</strong><span>applications this month</span></div>
+      <svg className="trend-svg" viewBox="0 0 600 196" role="img" aria-label={`Application trend over the last six months. ${description}.`}>
+        {[0, 1, 2, 3].map((step) => {
+          const value = chartMax * (3 - step) / 3;
+          const y = plot.top + (chartHeight * step / 3);
+          return <g key={step}><line x1={plot.left} x2={plot.right} y1={y} y2={y} className="chart-grid-line" /><text x={plot.left - 10} y={y + 3} textAnchor="end" className="chart-axis-label">{value}</text></g>;
+        })}
+        {months.map((month, index) => {
+          const barHeight = month.count / chartMax * chartHeight;
+          const x = plot.left + slotWidth * index + (slotWidth - barWidth) / 2;
+          const y = plot.bottom - barHeight;
+          return <g key={month.key} className="trend-bar-group">
+            <rect className={`trend-bar ${index === months.length - 1 ? "trend-bar-current" : ""}`} x={x} y={y} width={barWidth} height={barHeight} rx="5" />
+            <text x={x + barWidth / 2} y={Math.max(plot.top - 3, y - 7)} textAnchor="middle" className="chart-value-label">{month.count}</text>
+            <text x={x + barWidth / 2} y={plot.bottom + 21} textAnchor="middle" className="chart-axis-label chart-month-label">{month.label}</text>
+          </g>;
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function HiringFunnelChart({ applications }: { applications: Application[] }) {
+  const currentMonthKey = getMonthKey(new Date());
+  const currentMonthApplications = applications.filter((application) => {
+    const appliedAt = new Date(application.date);
+    return !Number.isNaN(appliedAt.getTime()) && getMonthKey(appliedAt) === currentMonthKey;
+  });
+  const segments = [
+    { label: "In review", color: "#8da487", count: currentMonthApplications.filter((application) => application.status === "In review").length },
+    { label: "Shortlisted", color: "#526d55", count: currentMonthApplications.filter((application) => application.status === "Shortlisted").length },
+    { label: "Next steps", color: "#d9b685", count: currentMonthApplications.filter((application) => application.status !== "In review" && application.status !== "Shortlisted").length },
+  ];
+  const total = currentMonthApplications.length;
+  const circumference = 2 * Math.PI * 44;
+  let consumed = 0;
+  const description = segments.map((segment) => `${segment.label}: ${segment.count}`).join(", ");
+
+  return (
+    <div className="funnel-chart">
+      <div className="funnel-donut-wrap">
+        <svg className="funnel-donut" viewBox="0 0 112 112" role="img" aria-label={`Monthly hiring funnel, ${total} applications. ${description}.`}>
+          <circle className="funnel-track" cx="56" cy="56" r="44" />
+          {total === 0 ? <circle className="funnel-empty-ring" cx="56" cy="56" r="44" /> : segments.filter((segment) => segment.count > 0).map((segment) => {
+            const length = segment.count / total * circumference;
+            const offset = consumed;
+            consumed += length;
+            return <circle key={segment.label} cx="56" cy="56" r="44" fill="none" stroke={segment.color} strokeWidth="13" strokeDasharray={`${length} ${circumference - length}`} strokeDashoffset={-offset} className="funnel-segment" />;
+          })}
+          <text x="56" y="52" textAnchor="middle" className="funnel-total">{total}</text>
+          <text x="56" y="67" textAnchor="middle" className="funnel-total-label">APPLIED</text>
+        </svg>
+      </div>
+      <div className="funnel-legend">{segments.map((segment) => (
+        <div className="funnel-legend-item" key={segment.label}>
+          <span className="funnel-legend-dot" style={{ backgroundColor: segment.color }} />
+          <span>{segment.label}</span>
+          <strong>{segment.count}</strong>
+        </div>
+      ))}</div>
+    </div>
+  );
+}
+
 function EmployerPage({
   jobs,
   applications,
@@ -457,6 +550,16 @@ function EmployerPage({
         <div><span>TOTAL APPLICATIONS</span><b>{activeApplications.length.toString().padStart(2, "0")}</b><small>Across all active roles</small></div>
         <div><span>SHORTLISTED CANDIDATES</span><b>{shortlistedCount.toString().padStart(2, "0")}</b><small>Ready for your next step</small></div>
         <div><span>PROFILE VIEWS</span><b>128</b><small>People finding your team</small></div>
+      </div>
+      <div className="dashboard-charts">
+        <section className="dashboard-chart-card">
+          <div className="chart-card-heading"><div><div className="section-kicker">APPLICATIONS OVER TIME</div><h2>Application trend</h2></div><span className="chart-period"><Icon name="clock" size={14} /> Last 6 months</span></div>
+          <ApplicationTrendChart applications={activeApplications} />
+        </section>
+        <section className="dashboard-chart-card">
+          <div className="chart-card-heading"><div><div className="section-kicker">THIS MONTH</div><h2>Hiring funnel</h2></div><span className="chart-period">Monthly</span></div>
+          <HiringFunnelChart applications={activeApplications} />
+        </section>
       </div>
       <div className="section-heading listing-heading"><div><div className="section-kicker">THE ROLES YOU’RE SHARING</div><h2>Active job listings <span className="result-count">{jobs.length}</span></h2></div></div>
       {jobs.length === 0 ? <div className="empty-state"><span className="empty-icon"><Icon name="briefcase" size={23} /></span><h3>Your next great hire starts with a hello</h3><p>Share what makes your team special. Your first job post is just a few details away.</p><button className="button-primary" onClick={onPost}><Icon name="plus" size={17} /> Create a job listing</button></div> : <div className="listing-list">{jobs.map((job) => {
