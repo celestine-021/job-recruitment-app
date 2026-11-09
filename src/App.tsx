@@ -18,6 +18,8 @@ type Job = {
   featured?: boolean;
 };
 type Application = { jobId: string; date: string; status: string; applicantName: string; email: string; note: string };
+type Interview = { id: string; jobId: string; applicationDate: string; startsAt: string; durationMinutes: number; format: string };
+type InterviewTarget = { job: Job; application: Application };
 type Profile = { name: string; title: string; location: string; about: string; skills: string };
 
 const initialJobs: Job[] = [
@@ -158,8 +160,10 @@ function App() {
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
   const [category, setCategory] = useState("All roles");
-  const [modal, setModal] = useState<"apply" | "post" | "profile" | null>(null);
+  const [interviews, setInterviews] = useState<Interview[]>(() => readStorage("careerly-interviews", []));
+  const [modal, setModal] = useState<"apply" | "post" | "profile" | "interview" | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [interviewTarget, setInterviewTarget] = useState<InterviewTarget | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
   const [toast, setToast] = useState("");
 
@@ -168,6 +172,7 @@ function App() {
   useEffect(() => { localStorage.setItem("careerly-saved", JSON.stringify(saved)); }, [saved]);
   useEffect(() => { localStorage.setItem("careerly-applications", JSON.stringify(applications)); }, [applications]);
   useEffect(() => { localStorage.setItem("careerly-profile", JSON.stringify(profile)); }, [profile]);
+  useEffect(() => { localStorage.setItem("careerly-interviews", JSON.stringify(interviews)); }, [interviews]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 3000);
@@ -237,6 +242,34 @@ function App() {
     setModal(null);
     setToast("Your job is live — let's find your next great hire.");
     setPage("My listings");
+  };
+
+  const submitInterview = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!interviewTarget) return;
+    const formData = new FormData(event.currentTarget);
+    const startsAt = new Date(String(formData.get("startsAt")));
+    if (Number.isNaN(startsAt.getTime()) || startsAt.getTime() <= Date.now()) {
+      setToast("Choose an interview time in the future.");
+      return;
+    }
+    const interview: Interview = {
+      id: `${interviewTarget.job.id}-${interviewTarget.application.date}`,
+      jobId: interviewTarget.job.id,
+      applicationDate: interviewTarget.application.date,
+      startsAt: startsAt.toISOString(),
+      durationMinutes: Number(formData.get("durationMinutes")),
+      format: String(formData.get("format")),
+    };
+    setInterviews((items) => [...items.filter((item) => item.id !== interview.id), interview]);
+    setModal(null);
+    setInterviewTarget(null);
+    setToast("Interview added to your schedule.");
+  };
+
+  const openInterviewScheduler = (job: Job, application: Application) => {
+    setInterviewTarget({ job, application });
+    setModal("interview");
   };
 
   const navItems: { page: Page; icon: string; count?: number }[] = role === "seeker"
@@ -368,7 +401,9 @@ function App() {
             <EmployerPage
               jobs={jobs.filter((job) => job.id.startsWith("job-"))}
               applications={applications}
+              interviews={interviews}
               onPost={() => setModal("post")}
+              onScheduleInterview={openInterviewScheduler}
               onUpdateApplicationStatus={(jobId, date, status) => setApplications((items) => items.map((application) =>
                 application.jobId === jobId && application.date === date ? { ...application, status } : application,
               ))}
@@ -384,10 +419,11 @@ function App() {
         </div>
       </main>
 
-      {modal && <Modal onClose={() => { setModal(null); setSelectedJob(null); }}>
+      {modal && <Modal onClose={() => { setModal(null); setSelectedJob(null); setInterviewTarget(null); }}>
         {modal === "apply" && selectedJob && <ApplicationForm job={selectedJob} profile={profile} onSubmit={submitApplication} />}
         {modal === "post" && <PostJobForm onSubmit={submitListing} onCancel={() => setModal(null)} />}
         {modal === "profile" && <ProfileForm profile={profile} onSave={(nextProfile) => { setProfile(nextProfile); setModal(null); setToast("Profile updated — looking good!"); }} />}
+        {modal === "interview" && interviewTarget && <InterviewForm target={interviewTarget} existingInterview={interviews.find((interview) => interview.id === `${interviewTarget.job.id}-${interviewTarget.application.date}`)} onSubmit={submitInterview} onCancel={() => { setModal(null); setInterviewTarget(null); }} />}
       </Modal>}
       {toast && <div className="toast"><span className="toast-check"><Icon name="check" size={14} /></span>{toast}</div>}
     </div>
@@ -528,15 +564,83 @@ function HiringFunnelChart({ applications }: { applications: Application[] }) {
   );
 }
 
+function startOfDay(date: Date) {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+function getInterviewWindows(now = new Date()) {
+  const today = startOfDay(now);
+  const daysUntilNextMonday = (8 - today.getDay()) % 7 || 7;
+  const nextMonday = new Date(today);
+  nextMonday.setDate(today.getDate() + daysUntilNextMonday);
+  const followingMonday = new Date(nextMonday);
+  followingMonday.setDate(nextMonday.getDate() + 7);
+  return [
+    { id: "today", label: "Today", detail: "Today", start: today, end: new Date(today.getTime() + 86400000) },
+    { id: "later", label: "Later", detail: "Later this week", start: new Date(today.getTime() + 86400000), end: nextMonday },
+    { id: "next-week", label: "Next week", detail: "Next week", start: nextMonday, end: followingMonday },
+    { id: "later-on", label: "Later on", detail: "Beyond next week", start: followingMonday, end: null },
+  ];
+}
+
+function InterviewSchedule({ interviews, jobs, applications }: { interviews: Interview[]; jobs: Job[]; applications: Application[] }) {
+  const windows = getInterviewWindows();
+  const [selectedWindow, setSelectedWindow] = useState("today");
+  const scheduledInterviews = interviews.flatMap((interview) => {
+    const startsAt = new Date(interview.startsAt);
+    const job = jobs.find((item) => item.id === interview.jobId);
+    const application = applications.find((item) => item.jobId === interview.jobId && item.date === interview.applicationDate);
+    return job && application && !Number.isNaN(startsAt.getTime()) ? [{ interview, startsAt, job, application }] : [];
+  }).sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  const selected = windows.find((window) => window.id === selectedWindow) ?? windows[0];
+  const visibleInterviews = scheduledInterviews.filter(({ startsAt }) =>
+    startsAt >= selected.start && (!selected.end || startsAt < selected.end),
+  );
+
+  return (
+    <section className="interview-schedule">
+      <div className="section-heading dashboard-section-heading">
+        <div><div className="section-kicker">MAKE TIME FOR GOOD PEOPLE</div><h2>Interviews <span className="result-count">{scheduledInterviews.length}</span></h2></div>
+        <span className="schedule-timezone">Times shown in your local timezone</span>
+      </div>
+      <div className="interview-tabs" role="tablist" aria-label="Interview schedule">
+        {windows.map((window) => {
+          const count = scheduledInterviews.filter(({ startsAt }) => startsAt >= window.start && (!window.end || startsAt < window.end)).length;
+          return <button key={window.id} type="button" className={`interview-tab ${selectedWindow === window.id ? "interview-tab-active" : ""}`} role="tab" aria-selected={selectedWindow === window.id} onClick={() => setSelectedWindow(window.id)}><span>{window.label}</span><b>{count}</b><small>{window.detail}</small></button>;
+        })}
+      </div>
+      {visibleInterviews.length === 0 ? (
+        <div className="interview-empty"><span className="empty-icon"><Icon name="clock" size={21} /></span><div><strong>No interviews {selected.id === "today" ? "today" : selected.id === "later" ? "later this week" : selected.id === "next-week" ? "next week" : "scheduled for later"}.</strong><p>Schedule an interview from a recent application to see it here.</p></div></div>
+      ) : (
+        <div className="interview-list">{visibleInterviews.map(({ interview, startsAt, job, application }) => (
+          <article className="interview-card" key={interview.id}>
+            <div className="interview-time"><strong>{startsAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</strong><span>{startsAt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</span></div>
+            <span className="interview-time-divider" />
+            <div className="avatar interview-avatar">{application.applicantName.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div>
+            <div className="interview-details"><strong>{application.applicantName}</strong><span>{job.title} · {interview.format}</span></div>
+            <span className="interview-duration">{interview.durationMinutes} min</span>
+          </article>
+        ))}</div>
+      )}
+    </section>
+  );
+}
+
 function EmployerPage({
   jobs,
   applications,
+  interviews,
   onPost,
+  onScheduleInterview,
   onUpdateApplicationStatus,
 }: {
   jobs: Job[];
   applications: Application[];
+  interviews: Interview[];
   onPost: () => void;
+  onScheduleInterview: (job: Job, application: Application) => void;
   onUpdateApplicationStatus: (jobId: string, date: string, status: string) => void;
 }) {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
@@ -561,6 +665,29 @@ function EmployerPage({
           <HiringFunnelChart applications={activeApplications} />
         </section>
       </div>
+      <div className="organization-activity-grid">
+        <section className="recent-submissions">
+          <div className="section-heading dashboard-section-heading">
+            <div><div className="section-kicker">FRESH IN YOUR INBOX</div><h2>Recently submitted <span className="result-count">{activeApplications.length}</span></h2></div>
+            <span className="submission-total">{activeApplications.length} total</span>
+          </div>
+          {activeApplications.length === 0 ? (
+            <div className="activity-empty"><span className="empty-icon"><Icon name="briefcase" size={20} /></span><p>No applications have been submitted to your active roles yet.</p></div>
+          ) : (
+            <div className="recent-submission-list">{[...activeApplications].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((application) => {
+              const job = jobs.find((item) => item.id === application.jobId);
+              if (!job) return null;
+              const interview = interviews.find((item) => item.jobId === application.jobId && item.applicationDate === application.date);
+              return <article className="recent-submission-card" key={`${application.jobId}-${application.date}`}>
+                <div className="avatar submission-avatar">{application.applicantName.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div>
+                <div className="submission-details"><strong>{application.applicantName}</strong><span>{job.title}</span><small>{new Date(application.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {application.status}</small></div>
+                <button className={`schedule-interview-button ${interview ? "has-interview" : ""}`} onClick={() => onScheduleInterview(job, application)}>{interview ? "Reschedule" : "Schedule"}<span> interview</span></button>
+              </article>;
+            })}</div>
+          )}
+        </section>
+        <InterviewSchedule interviews={interviews} jobs={jobs} applications={applications} />
+      </div>
       <div className="section-heading listing-heading"><div><div className="section-kicker">THE ROLES YOU’RE SHARING</div><h2>Active job listings <span className="result-count">{jobs.length}</span></h2></div></div>
       {jobs.length === 0 ? <div className="empty-state"><span className="empty-icon"><Icon name="briefcase" size={23} /></span><h3>Your next great hire starts with a hello</h3><p>Share what makes your team special. Your first job post is just a few details away.</p><button className="button-primary" onClick={onPost}><Icon name="plus" size={17} /> Create a job listing</button></div> : <div className="listing-list">{jobs.map((job) => {
         const jobApplications = applications.filter((application) => application.jobId === job.id);
@@ -569,7 +696,8 @@ function EmployerPage({
         return <div key={job.id}><article className={`listing-card ${isSelected ? "listing-selected" : ""}`}><div className={`company-logo ${job.logoClass}`}>{job.logo}</div><div className="listing-main"><h3>{job.title}</h3><p>{job.location} <span>·</span> Posted {job.posted}</p></div><span className="status-pill"><i />Active</span><div className="listing-metric"><b>{jobApplications.length}</b><span>applications</span></div><div className="listing-metric shortlist-metric"><b>{jobShortlisted}</b><span>shortlisted</span></div><button className="icon-button application-arrow" aria-label={`${isSelected ? "Hide" : "View"} applicants for ${job.title}`} aria-expanded={isSelected} onClick={() => setSelectedJobId(isSelected ? null : job.id)}><Icon name="arrow" size={18} /></button></article>
           {isSelected && <div className="applicant-panel"><div className="applicant-panel-heading"><h3>People who raised their hand</h3><span>{jobApplications.length} {jobApplications.length === 1 ? "applicant" : "applicants"} · {jobShortlisted} shortlisted</span></div>{jobApplications.length === 0 ? <p className="no-applicants">No applications yet. The right person may be just around the corner.</p> : jobApplications.map((application) => {
             const isShortlisted = application.status === "Shortlisted";
-            return <article className="applicant-card" key={`${application.jobId}-${application.date}`}><div className="avatar applicant-avatar">{application.applicantName.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div><div className="applicant-details"><strong>{application.applicantName}</strong><a href={`mailto:${encodeURIComponent(application.email)}`}>{application.email}</a>{application.note && <p>{application.note}</p>}</div><span className={`status-pill ${isShortlisted ? "shortlisted-status" : ""}`}><i />{application.status}</span><button className={`shortlist-button ${isShortlisted ? "shortlisted-button" : ""}`} onClick={() => onUpdateApplicationStatus(job.id, application.date, isShortlisted ? "In review" : "Shortlisted")}>{isShortlisted ? "Remove shortlist" : "Shortlist"}</button></article>;
+            const interviewScheduled = interviews.some((interview) => interview.jobId === job.id && interview.applicationDate === application.date);
+            return <article className="applicant-card" key={`${application.jobId}-${application.date}`}><div className="avatar applicant-avatar">{application.applicantName.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div><div className="applicant-details"><strong>{application.applicantName}</strong><a href={`mailto:${encodeURIComponent(application.email)}`}>{application.email}</a>{application.note && <p>{application.note}</p>}</div><span className={`status-pill ${isShortlisted ? "shortlisted-status" : ""}`}><i />{application.status}</span><button className={`shortlist-button ${isShortlisted ? "shortlisted-button" : ""}`} onClick={() => onUpdateApplicationStatus(job.id, application.date, isShortlisted ? "In review" : "Shortlisted")}>{isShortlisted ? "Remove shortlist" : "Shortlist"}</button><button className="schedule-interview-button applicant-schedule-button" onClick={() => onScheduleInterview(job, application)}>{interviewScheduled ? "Reschedule" : "Schedule interview"}</button></article>;
           })}</div>}
         </div>;
       })}</div>}
@@ -589,6 +717,29 @@ function Modal({ children, onClose }: { children: ReactNode; onClose: () => void
 
 function ApplicationForm({ job, profile, onSubmit }: { job: Job; profile: Profile; onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
   return <form className="form-content" onSubmit={onSubmit}><div className="modal-eyebrow">A GOOD FIRST STEP</div><h2>Apply to {job.company}<span className="modal-period">.</span></h2><p className="modal-lead">A little introduction goes a long way. You’ve got this.</p><div className="apply-job-preview"><div className={`company-logo ${job.logoClass}`}>{job.logo}</div><div><strong>{job.title}</strong><span>{job.company} · {job.location}</span></div></div><label>Your name<input name="name" defaultValue={profile.name} required /></label><label>Email address<input name="email" type="email" placeholder="you@example.com" required /></label><label>A note for the team <span className="optional-label">Optional</span><textarea name="note" rows={4} placeholder="What caught your eye about this role?" /></label><button className="button-primary form-submit" type="submit">Send my application <Icon name="arrow" size={17} /></button><small className="form-footnote">Your profile details will be shared with this team.</small></form>;
+}
+
+function toLocalDateTimeValue(date: Date) {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function InterviewForm({ target, existingInterview, onSubmit, onCancel }: { target: InterviewTarget; existingInterview?: Interview; onSubmit: (event: FormEvent<HTMLFormElement>) => void; onCancel: () => void }) {
+  const defaultStart = new Date();
+  defaultStart.setHours(defaultStart.getHours() + 1, 0, 0, 0);
+  const selectedStart = existingInterview ? new Date(existingInterview.startsAt) : defaultStart;
+  return <form className="form-content" onSubmit={onSubmit}>
+    <div className="modal-eyebrow">MAKE A LITTLE ROOM TO CONNECT</div>
+    <h2>{existingInterview ? "Reschedule interview" : "Schedule an interview"}<span className="modal-period">.</span></h2>
+    <p className="modal-lead">Choose a time to meet with {target.application.applicantName} about {target.job.title}.</p>
+    <div className="apply-job-preview"><div className="avatar interview-form-avatar">{target.application.applicantName.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div><div><strong>{target.application.applicantName}</strong><span>{target.job.title} · {target.application.email}</span></div></div>
+    <label>Date and time<input name="startsAt" type="datetime-local" min={toLocalDateTimeValue(new Date())} defaultValue={toLocalDateTimeValue(selectedStart)} required /></label>
+    <div className="form-grid">
+      <label>Duration<select name="durationMinutes" defaultValue={existingInterview?.durationMinutes ?? 30}><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select></label>
+      <label>Interview format<select name="format" defaultValue={existingInterview?.format ?? "Video call"}><option>Video call</option><option>Phone call</option><option>In person</option></select></label>
+    </div>
+    <div className="form-actions"><button type="button" className="cancel-button" onClick={onCancel}>Cancel</button><button type="submit" className="button-primary"><Icon name="check" size={17} /> {existingInterview ? "Save new time" : "Add to schedule"}</button></div>
+  </form>;
 }
 
 function PostJobForm({ onSubmit, onCancel }: { onSubmit: (event: FormEvent<HTMLFormElement>) => void; onCancel: () => void }) {
