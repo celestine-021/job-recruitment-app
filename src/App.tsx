@@ -111,7 +111,7 @@ const initialJobs: Job[] = [
 ];
 
 const defaultProfile: Profile = {
-  name: "Alex Morgan",
+  name: "Celestine Wangari",
   title: "Product designer who loves making things click",
   location: "Brooklyn, New York",
   about: "I'm a product designer with 5 years of experience turning complex problems into clear, helpful experiences. I care about the little details and the people behind every screen.",
@@ -125,6 +125,21 @@ function readStorage<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function getInitials(name: string) {
+  return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+}
+
+function readProfile() {
+  const profile = readStorage("careerly-profile", defaultProfile);
+  return profile.name === "Alex Morgan" ? { ...profile, name: defaultProfile.name } : profile;
+}
+
+function readApplications() {
+  return readStorage<Application[]>("careerly-applications", []).map((application) =>
+    application.applicantName === "Alex Morgan" ? { ...application, applicantName: defaultProfile.name } : application,
+  );
 }
 
 function Icon({ name, size = 20 }: { name: string; size?: number }) {
@@ -155,8 +170,8 @@ function App() {
   const [page, setPage] = useState<Page>("Discover");
   const [jobs, setJobs] = useState<Job[]>(() => readStorage("careerly-jobs", initialJobs));
   const [saved, setSaved] = useState<string[]>(() => readStorage("careerly-saved", ["brand-designer"]));
-  const [applications, setApplications] = useState<Application[]>(() => readStorage("careerly-applications", []));
-  const [profile, setProfile] = useState<Profile>(() => readStorage("careerly-profile", defaultProfile));
+  const [applications, setApplications] = useState<Application[]>(readApplications);
+  const [profile, setProfile] = useState<Profile>(readProfile);
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
   const [category, setCategory] = useState("All roles");
@@ -325,7 +340,7 @@ function App() {
         <div className="sidebar-bottom">
           <div className="help-line"><span className="help-dot">?</span> Need a hand? <button onClick={() => setToast("Our friendly support team is here at hello@careerly.com")}>Get in touch</button></div>
           <button className="mini-profile" onClick={() => navigate("My profile")}>
-            <div className="avatar">AM</div>
+            <div className="avatar">{getInitials(role === "seeker" ? profile.name : "Olivia Chen")}</div>
             <span><strong>{role === "seeker" ? profile.name : "Olivia Chen"}</strong><small>{role === "seeker" ? "Personal account" : "People & Culture"}</small></span>
             <span className="more-dots">···</span>
           </button>
@@ -340,7 +355,7 @@ function App() {
           <div className="topbar-actions">
             <span className="welcome-date">Monday, November 9</span>
             <button className="icon-button notification-button" aria-label="Notifications" onClick={() => setToast("You're all caught up — no new notifications.")}><Icon name="bell" size={19} /><i /></button>
-            <button className="top-avatar" aria-label="Open your profile" onClick={() => navigate("My profile")}>AM</button>
+            <button className="top-avatar" aria-label="Open your profile" onClick={() => navigate("My profile")}>{getInitials(role === "seeker" ? profile.name : "Olivia Chen")}</button>
           </div>
         </header>
 
@@ -466,7 +481,7 @@ function ProfilePage({ profile, onEdit, applications, saved }: { profile: Profil
   return (
     <section className="page-section profile-page">
       <div className="section-kicker">A LITTLE ABOUT YOU</div><h1 className="page-title">My profile</h1><p className="page-subtitle">The person behind the good work.</p>
-      <div className="profile-card"><div className="profile-cover"><span>✳</span><span>✦</span><span>✳</span></div><div className="profile-main"><div className="profile-avatar">AM</div><button className="edit-profile-button" onClick={onEdit}>Edit profile <Icon name="arrow" size={15} /></button><h2>{profile.name}</h2><p className="profile-title">{profile.title}</p><p className="profile-location"><Icon name="pin" size={16} />{profile.location}</p><div className="profile-divider" /><h3>A little about me</h3><p className="profile-about">{profile.about}</p><h3>Things I’m good at</h3><div className="skill-tags profile-skills">{profile.skills.split(",").map((skill) => skill.trim()).filter(Boolean).map((skill) => <span key={skill}>{skill}</span>)}</div><div className="profile-stats"><div><b>{applications}</b><span>Applications</span></div><div><b>{saved}</b><span>Saved roles</span></div><div><b>72%</b><span>Profile strength</span></div></div></div></div>
+      <div className="profile-card"><div className="profile-cover"><span>✳</span><span>✦</span><span>✳</span></div><div className="profile-main"><div className="profile-avatar">{getInitials(profile.name)}</div><button className="edit-profile-button" onClick={onEdit}>Edit profile <Icon name="arrow" size={15} /></button><h2>{profile.name}</h2><p className="profile-title">{profile.title}</p><p className="profile-location"><Icon name="pin" size={16} />{profile.location}</p><div className="profile-divider" /><h3>A little about me</h3><p className="profile-about">{profile.about}</p><h3>Things I’m good at</h3><div className="skill-tags profile-skills">{profile.skills.split(",").map((skill) => skill.trim()).filter(Boolean).map((skill) => <span key={skill}>{skill}</span>)}</div><div className="profile-stats"><div><b>{applications}</b><span>Applications</span></div><div><b>{saved}</b><span>Saved roles</span></div><div><b>72%</b><span>Profile strength</span></div></div></div></div>
     </section>
   );
 }
