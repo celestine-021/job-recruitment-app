@@ -212,14 +212,16 @@ button.company-logo { cursor: pointer; }
 .employer-heading-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px; }
 .employer-heading-row .page-subtitle { margin-bottom: 0; }
 .employer-heading-row .page-title span { color: #91a37e; font-size: 19px; }
-.employer-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; margin-bottom: 32px; }
+.employer-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; margin-bottom: 32px; }
 .employer-stats > div { display: grid; gap: 8px; padding: 17px 18px; border: 1px solid #eaedeb; border-radius: 9px; background: #fff; }
 .employer-stats > div > span { color: #939a93; font-size: 8px; font-weight: 700; letter-spacing: 1px; }
 .employer-stats b { color: #435a45; font: 700 26px "Manrope", sans-serif; }
 .employer-stats small { display: flex; align-items: center; gap: 5px; color: #979d96; font-size: 9px; }
 .listing-heading { margin-bottom: 13px; }
 .listing-card { gap: 12px; }
-.listing-applicants { display: grid; gap: 2px; min-width: 62px; text-align: center; }.listing-applicants b { color: #536952; font: 700 13px "Manrope", sans-serif; }.listing-applicants span { color: #989e98; font-size: 8px; }
+.listing-metric { display: grid; gap: 2px; min-width: 56px; text-align: center; }
+.listing-metric b { color: #536952; font: 700 13px "Manrope", sans-serif; }
+.listing-metric span { color: #989e98; font-size: 8px; }
 .listing-selected { border-color: #d7e1d5; border-radius: 10px 10px 0 0; }
 .listing-selected .application-arrow svg { transform: rotate(90deg); }
 .applicant-panel { padding: 14px; border: 1px solid #dfe7dd; border-top: 0; border-radius: 0 0 10px 10px; background: #fbfcfa; }
@@ -234,6 +236,12 @@ button.company-logo { cursor: pointer; }
 .applicant-details a { width: fit-content; color: #68816b; font-size: 8px; text-decoration: none; }
 .applicant-details a:hover { text-decoration: underline; }
 .applicant-details p { margin: 3px 0 0; color: #7e877e; font-size: 9px; line-height: 1.5; }
+.shortlisted-status { color: #526e53; background: #e7f1e4; }
+.shortlisted-status i { background: #648d62; }
+.shortlist-button { flex: 0 0 auto; padding: 7px 10px; color: #557156; font-size: 8px; font-weight: 700; border: 1px solid #dfe8dc; border-radius: 6px; background: #fff; cursor: pointer; transition: background .16s, border-color .16s; }
+.shortlist-button:hover { border-color: #b8cbb5; background: #f1f6ef; }
+.shortlisted-button { color: #777e77; border-color: #e8ebe7; background: #f8f9f7; }
+.shortlisted-button:hover { border-color: #e2d5cf; background: #fbf5f2; }
 .employer-note { color: #8b806d; border-color: #eee9df; background: #faf7f0; }.employer-note svg { flex: 0 0 auto; color: #a89673; }.employer-note strong { color: #7b6d54; }
 .employer-discover { padding-top: 55px; }
 .employer-discover h1 { margin-top: 12px; font-size: 43px; line-height: 1.04; }
@@ -339,8 +347,9 @@ button.company-logo { cursor: pointer; }
   .status-pill { gap: 4px; padding: 5px 6px; font-size: 8px; }
   .application-arrow { width: 28px; height: 28px; }
   .employer-heading-row { align-items: start; gap: 11px; }.employer-heading-row .page-title { font-size: 17px; }.employer-heading-row > .button-primary { min-height: 34px; padding: 0 9px; font-size: 8px; white-space: nowrap; }
-  .employer-stats { gap: 6px; }.employer-stats > div { gap: 6px; padding: 12px 9px; }.employer-stats > div > span { font-size: 7px; letter-spacing: .5px; }.employer-stats b { font-size: 21px; }.employer-stats small { font-size: 7px; }
-  .listing-applicants { min-width: 41px; }
+  .employer-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }.employer-stats > div { gap: 6px; padding: 12px 9px; }.employer-stats > div > span { font-size: 7px; letter-spacing: .5px; }.employer-stats b { font-size: 21px; }.employer-stats small { font-size: 7px; }
+  .listing-metric { min-width: 37px; }.listing-metric span { font-size: 7px; }
+  .shortlist-button { padding: 6px 7px; font-size: 7px; }
   .profile-main { padding: 0 15px 18px; }.profile-cover { height: 90px; }.profile-stats { justify-content: space-between; gap: 10px; }
   .employer-benefits { grid-template-columns: 1fr; gap: 8px; margin-top: 37px; }.employer-discover { padding-top: 34px; }.employer-discover h1 { font-size: 35px; }
   .modal-backdrop { align-items: flex-end; padding: 0; }

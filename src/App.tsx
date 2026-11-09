@@ -365,7 +365,14 @@ function App() {
           )}
 
           {role === "employer" && page === "My listings" && (
-            <EmployerPage jobs={jobs.filter((job) => job.id.startsWith("job-"))} applications={applications} onPost={() => setModal("post")} />
+            <EmployerPage
+              jobs={jobs.filter((job) => job.id.startsWith("job-"))}
+              applications={applications}
+              onPost={() => setModal("post")}
+              onUpdateApplicationStatus={(jobId, date, status) => setApplications((items) => items.map((application) =>
+                application.jobId === jobId && application.date === date ? { ...application, status } : application,
+              ))}
+            />
           )}
           {role === "employer" && page === "Discover" && (
             <div className="employer-discover">
@@ -428,19 +435,39 @@ function ProfilePage({ profile, onEdit, applications, saved }: { profile: Profil
   );
 }
 
-function EmployerPage({ jobs, applications, onPost }: { jobs: Job[]; applications: Application[]; onPost: () => void }) {
+function EmployerPage({
+  jobs,
+  applications,
+  onPost,
+  onUpdateApplicationStatus,
+}: {
+  jobs: Job[];
+  applications: Application[];
+  onPost: () => void;
+  onUpdateApplicationStatus: (jobId: string, date: string, status: string) => void;
+}) {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const applicantCount = applications.length;
+  const activeApplications = applications.filter((application) => jobs.some((job) => job.id === application.jobId));
+  const shortlistedCount = activeApplications.filter((application) => application.status === "Shortlisted").length;
   return (
     <section className="page-section employer-page">
       <div className="employer-heading-row"><div><div className="section-kicker">PEOPLE FIRST, ALWAYS</div><h1 className="page-title">Good morning, Olivia <span>✳</span></h1><p className="page-subtitle">Here’s a little snapshot of your hiring journey.</p></div><button className="button-primary" onClick={onPost}><Icon name="plus" size={17} /> Post a new role</button></div>
-      <div className="employer-stats"><div><span>LIVE LISTINGS</span><b>{jobs.length.toString().padStart(2, "0")}</b><small><i className="live-dot" /> Open to applicants</small></div><div><span>APPLICATIONS</span><b>{applicantCount.toString().padStart(2, "0")}</b><small>Across all your roles</small></div><div><span>PROFILE VIEWS</span><b>{jobs.length ? "128" : "—"}</b><small>People finding your team</small></div></div>
-      <div className="section-heading listing-heading"><div><div className="section-kicker">THE ROLES YOU’RE SHARING</div><h2>Your job listings <span className="result-count">{jobs.length}</span></h2></div></div>
+      <div className="employer-stats">
+        <div><span>ACTIVE JOB LISTINGS</span><b>{jobs.length.toString().padStart(2, "0")}</b><small><i className="live-dot" /> Open to applicants</small></div>
+        <div><span>TOTAL APPLICATIONS</span><b>{activeApplications.length.toString().padStart(2, "0")}</b><small>Across all active roles</small></div>
+        <div><span>SHORTLISTED CANDIDATES</span><b>{shortlistedCount.toString().padStart(2, "0")}</b><small>Ready for your next step</small></div>
+        <div><span>PROFILE VIEWS</span><b>128</b><small>People finding your team</small></div>
+      </div>
+      <div className="section-heading listing-heading"><div><div className="section-kicker">THE ROLES YOU’RE SHARING</div><h2>Active job listings <span className="result-count">{jobs.length}</span></h2></div></div>
       {jobs.length === 0 ? <div className="empty-state"><span className="empty-icon"><Icon name="briefcase" size={23} /></span><h3>Your next great hire starts with a hello</h3><p>Share what makes your team special. Your first job post is just a few details away.</p><button className="button-primary" onClick={onPost}><Icon name="plus" size={17} /> Create a job listing</button></div> : <div className="listing-list">{jobs.map((job) => {
         const jobApplications = applications.filter((application) => application.jobId === job.id);
+        const jobShortlisted = jobApplications.filter((application) => application.status === "Shortlisted").length;
         const isSelected = selectedJobId === job.id;
-        return <div key={job.id}><article className={`listing-card ${isSelected ? "listing-selected" : ""}`}><div className={`company-logo ${job.logoClass}`}>{job.logo}</div><div className="listing-main"><h3>{job.title}</h3><p>{job.location} <span>·</span> Posted {job.posted}</p></div><span className="status-pill"><i />Live</span><div className="listing-applicants"><b>{jobApplications.length}</b><span>applicants</span></div><button className="icon-button application-arrow" aria-label={`${isSelected ? "Hide" : "View"} applicants for ${job.title}`} aria-expanded={isSelected} onClick={() => setSelectedJobId(isSelected ? null : job.id)}><Icon name="arrow" size={18} /></button></article>
-          {isSelected && <div className="applicant-panel"><div className="applicant-panel-heading"><h3>People who raised their hand</h3><span>{jobApplications.length} {jobApplications.length === 1 ? "applicant" : "applicants"}</span></div>{jobApplications.length === 0 ? <p className="no-applicants">No applications yet. The right person may be just around the corner.</p> : jobApplications.map((application) => <article className="applicant-card" key={`${application.jobId}-${application.date}`}><div className="avatar applicant-avatar">{application.applicantName.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div><div className="applicant-details"><strong>{application.applicantName}</strong><a href={`mailto:${encodeURIComponent(application.email)}`}>{application.email}</a>{application.note && <p>{application.note}</p>}</div><span className="status-pill"><i />{application.status}</span></article>)}</div>}
+        return <div key={job.id}><article className={`listing-card ${isSelected ? "listing-selected" : ""}`}><div className={`company-logo ${job.logoClass}`}>{job.logo}</div><div className="listing-main"><h3>{job.title}</h3><p>{job.location} <span>·</span> Posted {job.posted}</p></div><span className="status-pill"><i />Active</span><div className="listing-metric"><b>{jobApplications.length}</b><span>applications</span></div><div className="listing-metric shortlist-metric"><b>{jobShortlisted}</b><span>shortlisted</span></div><button className="icon-button application-arrow" aria-label={`${isSelected ? "Hide" : "View"} applicants for ${job.title}`} aria-expanded={isSelected} onClick={() => setSelectedJobId(isSelected ? null : job.id)}><Icon name="arrow" size={18} /></button></article>
+          {isSelected && <div className="applicant-panel"><div className="applicant-panel-heading"><h3>People who raised their hand</h3><span>{jobApplications.length} {jobApplications.length === 1 ? "applicant" : "applicants"} · {jobShortlisted} shortlisted</span></div>{jobApplications.length === 0 ? <p className="no-applicants">No applications yet. The right person may be just around the corner.</p> : jobApplications.map((application) => {
+            const isShortlisted = application.status === "Shortlisted";
+            return <article className="applicant-card" key={`${application.jobId}-${application.date}`}><div className="avatar applicant-avatar">{application.applicantName.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div><div className="applicant-details"><strong>{application.applicantName}</strong><a href={`mailto:${encodeURIComponent(application.email)}`}>{application.email}</a>{application.note && <p>{application.note}</p>}</div><span className={`status-pill ${isShortlisted ? "shortlisted-status" : ""}`}><i />{application.status}</span><button className={`shortlist-button ${isShortlisted ? "shortlisted-button" : ""}`} onClick={() => onUpdateApplicationStatus(job.id, application.date, isShortlisted ? "In review" : "Shortlisted")}>{isShortlisted ? "Remove shortlist" : "Shortlist"}</button></article>;
+          })}</div>}
         </div>;
       })}</div>}
       <div className="employer-note"><Icon name="sparkles" size={18} /><p><strong>Good people are out there.</strong> Write a post that sounds like your team, not just a job description.</p></div>
